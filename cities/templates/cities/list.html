@@ -41,6 +41,7 @@
             {% endfor %}
         ];
         var map;
+        var all_blockposts = [];
         var marker_count = 0;
         var drawn_markers = [];
         var pos, pos2;
@@ -61,7 +62,8 @@
                 center: center,
                 mapTypeId: 'roadmap',
             });
-
+            
+            // options to build routes
             directionsDisplay = new google.maps.DirectionsRenderer();
             directionsService = new google.maps.DirectionsService();
 
@@ -81,17 +83,9 @@
             // add drawing tools to map
             drawingManager.setMap(map);
 
-            
-
-            // listener to place marker when click on map
-            // google.maps.event.addListener(map, 'click', function(event) {
-            //     placeMarker(map, event.latLng);
-            // });
-
-            // listener when we place marker on map
+            // listener when we place marker on map (drawingManager)
             google.maps.event.addListener(drawingManager, 'markercomplete', function(marker) {
                 marker_count += 1;
-                console.log(marker_count);
                 if (marker_count == 1) {
                     // get first marker
                     pos2 = {lat: marker.position.lat(), lng: marker.position.lng()};
@@ -102,7 +96,7 @@
                     // get second marker and draw route between them
                     pos = {lat: marker.position.lat(), lng: marker.position.lng()};
                     drawn_markers.push(marker);
-                    plotRoute(pos, pos2);
+                    plotRoute(pos, pos2, map);
                     directionsDisplay.setMap(map);
                 }
                 if (marker_count >= 2)
@@ -116,7 +110,6 @@
                     }
 
                 }
-                console.log('marker complete')
             });
 
             infoWindow = new google.maps.InfoWindow();
@@ -132,13 +125,13 @@
                     // animation: google.maps.Animation.BOUNCE, // manually
                     // icon: "pinkball.png"
                 });
-
+                all_blockposts.push(marker) // add marker to massive
                 google.maps.event.addListener(marker, 'click', function(){
                     infoWindow.setContent(html);
                     infoWindow.open(map, marker);
                     // Zoom to 17 when clicking on marker and set center with marker's coords
-                    map.setZoom(17);
-                    map.setCenter(marker.getPosition());
+                    // map.setZoom(17);
+                    // map.setCenter(marker.getPosition());
                     // timeout for map back
                     // window.setTimeout(function() {map.setZoom(pos);},3000);
                 })
@@ -157,7 +150,7 @@
 
         //CREATES A ROUT
         // after calling the function, add: directionsDisplay.setMap(map)
-        function plotRoute(pos, pos2) {
+        function plotRoute(pos, pos2, map) {
             var request = {
                 origin: pos2,
                 destination: pos,
@@ -165,23 +158,26 @@
             };
             directionsService.route(request, function(result, status) {
                 if (status === 'OK') {
-                    console.log(result.routes[0].overview_path)
-                    directionsDisplay.setDirections(result);
+                    directionsDisplay.setDirections(result); // display route on map
+                    console.log(result.routes[0].overview_polyline)
+                    // get pathes list to create Polyline object
+                    var cascadiaFault = new google.maps.Polyline({
+                        path: google.maps.geometry.encoding.decodePath(result.routes[0].overview_polyline)
+                    });
+                    // cascadiaFault.setMap(map);
+                    
+                    // check if blockpost on map
+                    for (var i = 0; i < all_blockposts.length; i++){
+                        if (google.maps.geometry.poly.isLocationOnEdge(all_blockposts[i].position, cascadiaFault, 0.001)) {
+                            alert(i+1);
+                        }
+                        else {
+                            // alert("Ok")
+                        }
+                    }
+                    
                 }
             });
-        }
-
-        // PLACE MARKER
-        function placeMarker(map, location) {
-            var marker = new google.maps.Marker({
-                draggable: true,
-                position: location,
-                map: map
-            });
-            var infowindow = new google.maps.InfoWindow({
-                content: 'Latitude: ' + location.lat() + '<br>Longitude: ' + location.lng()
-            });
-            infowindow.open(map,marker);
         }
 
         // START DRAW MARKERS
@@ -192,6 +188,9 @@
         // CLEAR ALL ROUTES
         document.getElementById('clear-route').onclick = function() {
             directionsDisplay.setMap(null);
+            directionsDisplay = null;
+            directionsDisplay = new google.maps.DirectionsRenderer();
+            directionsDisplay.setMap(map); 
             drawingManager.setDrawingMode(google.maps.drawing.OverlayType.MARKER);
         };
 
