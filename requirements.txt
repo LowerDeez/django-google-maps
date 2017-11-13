@@ -1,0 +1,6 @@
+Django==1.11.7
+django-google-maps==0.7.0
+django-map-widgets==0.1.9
+djangorestframework==3.7.3
+psycopg2==2.7.3.2
+pytz==2017.3

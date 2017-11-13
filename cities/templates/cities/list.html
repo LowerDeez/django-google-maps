@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% block content %}
+    <div class="container">
+        <div style="margin-bottom: 20px">
+            <a href="{% url 'cities:create' %}" class="btn btn-default block">Create</a></div>
+        <ul class="block">
+            {% for city in cities %}
+                <li><a href="{% url 'cities:detail' city.id %}">City name: {{ city.name }}</a></li>
+                <li><a href="{% url 'cities:detail' city.id %}">City latitude: {{ city.latitude }}</a></li>
+                <li><a href="{% url 'cities:detail' city.id %}">City longitude: {{ city.longitude }}</a></li>
+            {% endfor %}
+            <p>Center:</p>
+            <p>Latitude: {{ center.avg_lat }}</p>
+            <p>Longitude: {{ center.avg_long }}</p>
+        </ul>
+        <div class='row'>
+
+            <div class='col-sm-12'>
+                <h3>My Google Maps Demo</h3>
+                <button id="add-event-button" type="button" class="btn btn-success">
+                    <span class="glyphicon glyphicon-plus-sign"></span> Add Event
+                </button>
+                <button id="clear-route" type="button" class="btn btn-danger">
+                    <span class="glyphicon glyphicon-remove"></span> Clear path
+                </button>
+
+                <div id='map' class="gmap"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        var locations = [
+            {% for city in cities %}
+                {
+                    lat: {{ city.latitude|unlocalize }},
+                    lng: {{ city.longitude|unlocalize }},
+                    name: "{{ city.name }}",
+{#                    address:"{{ biz.location.display_address.0 }} {{ biz.location.display_address.1 }}"#}
+                },
+            {% endfor %}
+        ];
+        var map;
+        var marker_count = 0;
+        var drawn_markers = [];
+        var pos, pos2;
+        var route;
+        var markers;
+        var infoWindow;
+        var directionsDisplay;
+        var directionsService;
+        var drawingManager;
+
+        function initMap() {
+            // center of map
+            var center = {lat: {{ center.avg_lat|unlocalize }}, lng: {{ center.avg_long|unlocalize }}};
+
+            // map initialization
+            var map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 14, // 0 to 18
+                center: center,
+                mapTypeId: 'roadmap',
+            });
+
+            directionsDisplay = new google.maps.DirectionsRenderer();
+            directionsService = new google.maps.DirectionsService();
+
+            // init draw manager to place markers on map
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: google.maps.drawing.OverlayType.MARKER,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: ['marker']
+                },
+                markerOptions: {
+                    icon: 'http://maps.google.com/mapfiles/ms/icons/blue.png'
+                }
+            });
+
+            // add drawing tools to map
+            drawingManager.setMap(map);
+
+            
+
+            // listener to place marker when click on map
+            // google.maps.event.addListener(map, 'click', function(event) {
+            //     placeMarker(map, event.latLng);
+            // });
+
+            // listener when we place marker on map
+            google.maps.event.addListener(drawingManager, 'markercomplete', function(marker) {
+                marker_count += 1;
+                console.log(marker_count);
+                if (marker_count == 1) {
+                    // get first marker
+                    pos2 = {lat: marker.position.lat(), lng: marker.position.lng()};
+                    drawn_markers.push(marker)
+                }
+                if (marker_count == 2)
+                {
+                    // get second marker and draw route between them
+                    pos = {lat: marker.position.lat(), lng: marker.position.lng()};
+                    drawn_markers.push(marker);
+                    plotRoute(pos, pos2);
+                    directionsDisplay.setMap(map);
+                }
+                if (marker_count >= 2)
+                {
+                    // when we draw route - disable drawing mode, clear marker_count and remove drawn markers
+                    drawingManager.setDrawingMode(null);
+                    marker_count = 0;
+                    while(drawn_markers.length)
+                    {
+                        drawn_markers.pop().setMap(null);
+                    }
+
+                }
+                console.log('marker complete')
+            });
+
+            infoWindow = new google.maps.InfoWindow();
+
+            // function for creation markers and adding them to map
+            // function createMaker(latlng, name, address){
+            function createMaker(latlng, name){
+                // var html = "<b>" + name + "</b><br/>" + address;
+                var html = "<b>" + name + "</b>";
+                var marker = new google.maps.Marker({
+                    position: latlng,
+                    map: map,
+                    // animation: google.maps.Animation.BOUNCE, // manually
+                    // icon: "pinkball.png"
+                });
+
+                google.maps.event.addListener(marker, 'click', function(){
+                    infoWindow.setContent(html);
+                    infoWindow.open(map, marker);
+                    // Zoom to 17 when clicking on marker and set center with marker's coords
+                    map.setZoom(17);
+                    map.setCenter(marker.getPosition());
+                    // timeout for map back
+                    // window.setTimeout(function() {map.setZoom(pos);},3000);
+                })
+            }
+
+            // iterate loop with data for markers
+            if (locations.length > 0) {
+                for(var i = 0; i < locations.length; i++) {
+                    var obj = locations[i];
+                    var latlng = {lat: obj.lat, lng: obj.lng};
+                    createMaker(latlng, obj.name);
+                    // createMaker(latlng, obj.name, obj.address)
+                }
+            }
+        }
+
+        //CREATES A ROUT
+        // after calling the function, add: directionsDisplay.setMap(map)
+        function plotRoute(pos, pos2) {
+            var request = {
+                origin: pos2,
+                destination: pos,
+                travelMode: 'DRIVING'
+            };
+            directionsService.route(request, function(result, status) {
+                if (status === 'OK') {
+                    console.log(result.routes[0].overview_path)
+                    directionsDisplay.setDirections(result);
+                }
+            });
+        }
+
+        // PLACE MARKER
+        function placeMarker(map, location) {
+            var marker = new google.maps.Marker({
+                draggable: true,
+                position: location,
+                map: map
+            });
+            var infowindow = new google.maps.InfoWindow({
+                content: 'Latitude: ' + location.lat() + '<br>Longitude: ' + location.lng()
+            });
+            infowindow.open(map,marker);
+        }
+
+        // START DRAW MARKERS
+        document.getElementById('add-event-button').onclick = function() {
+            drawingManager.setDrawingMode(google.maps.drawing.OverlayType.MARKER);
+        };
+
+        // CLEAR ALL ROUTES
+        document.getElementById('clear-route').onclick = function() {
+            directionsDisplay.setMap(null);
+            drawingManager.setDrawingMode(google.maps.drawing.OverlayType.MARKER);
+        };
+
+    </script>
+
+{% endblock content %}
+
+{% block script %}
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAqOazqPcP8E-_s-Vp7MRbP3UMUgS2xfQw&callback=initMap&libraries=drawing,geometry"></script>
+{% endblock script %}
